@@ -59,24 +59,33 @@
 
 ### `search_listings`
 
-- **What it does:**
+- **What it does:** 
+This function takes a description from the user (and optionally a size and/or price ceiling), and gives back the listings that fit the description of the user, with the best match coming first.
 - **Inputs:** <!-- name and type each: `max_price` (float), not "a price" -->
-- **Returns:**
-- **When it has nothing:**
+The inputs:
+     - description (string)
+     - size (string)
+     - max_price (float)
+- **Returns:** This function returns a list of items (in {} - so a dictionary!) that fit the criteria that was set on it (based on the user's description and filtered by size and price). Each listing contains id, title, description, category, style_tags (list), size, condition, price (float), colors (list), brand (str or None), platform.
+- **When it has nothing:** When it has nothing, it simply returns an empty list
 
 ### `suggest_outfit`
 
-- **What it does:**
+- **What it does:** This function suggests one to two outfits based on the user's wardrobe and a thrifted item that the user selects. If the user's wardrobe is empty, it suggests based on general styling advice. 
 - **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+     - new_item (dict)
+     - wardrobe (dict)
+- **Returns:** This function returns a non-empty string with outfit suggestions based on your wardrobe and the item provided (and if wardrobe is empty, the suggestion is based on general styling).
+- **When it has nothing:** When the wardrobe is empty, they are provided with general styling tips.
 
 ### `create_fit_card`
 
-- **What it does:**
+- **What it does:** This function writes a short postable caption about the outfit suggestion provided by suggest_outfit(). 
 - **Inputs:**
-- **Returns:**
-- **When it has nothing:**
+     - outfit (string)
+     - new_item (dict)
+- **Returns:** This function returns a string that reads like a real post instead of a product description. This post should be slighty different everytime the function is ran.
+- **When it has nothing:** When the 'output' is empty or whitespace, this function should catch it and return a descriptive message to the user.
 
 ---
 
@@ -93,7 +102,7 @@
      The grader checks your code against what you claim here, so the file and
      function have to be real. -->
 
-**Branch rule:**
+**Branch rule:** If suggest_outfit receives an empty wardrobe, ask the model to generate a general styling suggestion. Otherwise, format the wardrobe items into the prompt and prompt the LLM for specific combinations naming pieces that the user already owns.
 
 **Where it lives:** `agent.py::run_agent`
 
