@@ -29,6 +29,12 @@ tool calls and returns a fit card — in at least 4 of 5 tries.
      "my search is a plain keyword match and some phrasings will miss" is a
      real answer. -->
 
+`search_listings` is plain code, so the same query finds the same listings
+every time. The risk is the two model calls after it: `suggest_outfit` and
+`create_fit_card` go over the network, and one timeout or empty response ends
+the run without a fit card even when search worked. 4 of 5 leaves room for one
+bad model response.
+
 ---
 
 ## 2. An impossible query stops before the second tool
@@ -40,10 +46,18 @@ Given a query that matches no listings, the agent stops before calling
 <!-- Why is 5 of 5 reasonable here when criterion 1 isn't? What's different
      about this path? -->
 
+This path never reaches the model. Parsing and search are plain code, and the
+stop is an `if` on an empty list in `run_agent`. The cheapest listing in the
+data is $12, so "under $5" returns an empty list on every run, and the branch
+takes the same path every time. With no randomness on this path, one miss in
+five means the branch is broken, not unlucky.
+
 ---
 
 ## 3. Something about state
 
+Given a query that returns at least one listing, the outfit suggestion names the selected item, and the fit card
+shows that item's title, price and platform, with no other listing mentioned — 4 of 5 tries, each with a different query.
 <!-- YOU WRITE THIS ONE.
 
      How would you know that the item your search found is the same item the
@@ -58,12 +72,16 @@ Given a query that matches no listings, the agent stops before calling
 
 **Why this target:**
 
-
+The item reaches both tools through the session, which is plain code, so the handoff itself should never be wrong. 
+The slack is for the model's writing: it may shorten or paraphrase the title, so one miss in five is allowed. 
+Details from a different listing are never allowed, because that's a state bug, not the model's wording.
 
 ---
 
 ## 4. Something about the fit card
 
+The caption contains the exact price (e.g. $18 or $18.00) and the platform name,
+and is 2–4 sentences long - 4 of 5 times.
 <!-- YOU WRITE THIS ONE.
 
      The fit card calls a model, so the same input can produce different words
@@ -79,11 +97,17 @@ Given a query that matches no listings, the agent stops before calling
 
 **Why this target:**
 
-
+Price and platform are passed straight into the prompt, so the model has everything it needs, and missing 
+them more than once in five would mean my prompt is wrong. I don't require 5/5 because the caption is meant 
+to read like a real post, not a listing, and at a nonzero temperature the model will sometimes drop the price for style or run to a fifth sentence.
 
 ---
 
 ## 5. Your choice
+
+For named queries that include a size and/or a price ceiling (e.g. "graphic tee size S under $25", "jacket size M"), 
+every returned listing has a matching size (S matches S and S/M, never US 9 or XL) and a price at or under 
+the ceiling - 5 out of 5 times.
 
 <!-- YOU WRITE THIS ONE TOO.
 
@@ -96,7 +120,8 @@ Given a query that matches no listings, the agent stops before calling
 
 **Why this target:**
 
-
+Size and price are hard filters in plain code. No model is involved, and the same query returns the same 
+listings every time, so one wrong listing is a bug, not bad luck.
 
 ---
 
