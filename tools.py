@@ -20,9 +20,220 @@ That last line is what your loop branches on. "Returns a list" earns nothing —
 the description has to say what is *in* the list.
 """
 
+import re
+
 import config  # noqa: F401 — you'll use this in search_listings
 from generate import generate
 from utils.data_loader import load_listings
+
+
+# ── Size matching (used by search_listings) ───────────────────────────────────
+
+# Every way of writing a letter size we accept, grouped by its canonical form.
+# Includes sizes the data doesn't have yet (xxs, xs, xxl) so they can still
+# match if those listings are ever added.
+LETTER_SIZE_SPELLINGS = {
+    "xxs": ["xxs", "2xs", "xx-small"],
+    "xs":  ["xs", "x-small", "xsmall", "extra small"],
+    "s":   ["s", "sm", "small"],
+    "m":   ["m", "med", "medium"],
+    "l":   ["l", "lg", "large"],
+    "xl":  ["xl", "x-large", "xlarge", "extra large"],
+    "xxl": ["xxl", "2xl", "xx-large"],
+}
+
+# Flipped into spelling → size, so parse_size can look a spelling up directly.
+LETTER_SIZES = {
+    spelling: size
+    for size, spellings in LETTER_SIZE_SPELLINGS.items()
+    for spelling in spellings
+}
+
+# Realistic ranges, used to decide what a bare number like "9" or "30" means.
+SHOE_RANGE = (4, 16)     # US shoe sizes
+WAIST_RANGE = (22, 48)   # waist in inches
+
+
+def parse_size(text: str | None) -> dict | None:
+    """
+    Read a size string — from a listing or from a user — into a kind plus values.
+
+    Returns one of:
+        {"kind": "letter",   "sizes": {"s", "m"}}
+        {"kind": "waist",    "waist": 30, "length": 30 or None}
+        {"kind": "shoe",     "size": 8.5}
+        {"kind": "one_size", "adjustable": True or False}
+    or None when the size can't be read (e.g. "petite").
+
+    Order matters: one size, then waist, then shoe, then letters. "30/30" has
+    to be read as a waist before the letter rule splits it on "/".
+    """
+    if not isinstance(text, str):
+        return None
+
+    text = text.strip()
+    adjustable = "adjustable" in text                # check before parentheses go
+    text = re.sub(r"\(.*?\)", " ", text)             # "xl (oversized)" → "xl"
+    text = re.sub(r"^size\s*:?\s*", "", text.strip())  # "size 9" → "9"
+    text = " ".join(text.split())
+    if not text:
+        return None
+
+    # One size — checked before "/" so "one size / oversized" isn't a range.
+    if "one size" in text or text in ("os", "onesize"):
+        return {"kind": "one_size", "adjustable": adjustable}
+
+    # Waist: "w30", "w30 l30", "w30l30"
+    match = re.fullmatch(r"w\s*(\d{2})(?:\s*l\s*(\d{2}))?", text)
+    # Waist: "30x30", "30 x 30", "30/30"
+    match = match or re.fullmatch(r"(\d{2})\s*[x/]\s*(\d{2})", text)
+    # Waist: "waist 30", "30 waist", "30w"
+    match = match or re.fullmatch(r"(?:waist\s*(\d{2})|(\d{2})\s*(?:waist|w))", text)
+    if match:
+        numbers = [int(n) for n in match.groups() if n]
+        if text.startswith("waist") or text.endswith(("waist", "w")):
+            waist, length = numbers[0], None
+        else:
+            waist = numbers[0]
+            length = numbers[1] if len(numbers) > 1 else None
+        if WAIST_RANGE[0] <= waist <= WAIST_RANGE[1]:
+            return {"kind": "waist", "waist": waist, "length": length}
+        return None
+
+    # Length only: "l30" — waist unknown.
+    match = re.fullmatch(r"l\s*(\d{2})", text)
+    if match:
+        return {"kind": "waist", "waist": None, "length": int(match.group(1))}
+
+    # Shoe: "us 9", "us 8.5"
+    match = re.fullmatch(r"us\s*(\d+(?:\.\d+)?)", text)
+    if match:
+        number = float(match.group(1))
+        if SHOE_RANGE[0] <= number <= SHOE_RANGE[1]:
+            return {"kind": "shoe", "size": number}
+        return None
+
+    # Bare number: decide shoe or waist by range.
+    match = re.fullmatch(r"\d+(?:\.\d+)?", text)
+    if match:
+        number = float(text)
+        if SHOE_RANGE[0] <= number <= SHOE_RANGE[1]:
+            return {"kind": "shoe", "size": number}
+        if WAIST_RANGE[0] <= number <= WAIST_RANGE[1] and number.is_integer():
+            return {"kind": "waist", "waist": int(number), "length": None}
+        return None
+
+    # Letters, including ranges: "s/m", "small/medium"
+    pieces = [piece.strip() for piece in text.split("/")]
+    if all(piece in LETTER_SIZES for piece in pieces):
+        return {"kind": "letter", "sizes": {LETTER_SIZES[piece] for piece in pieces}}
+
+    return None
+
+
+def compare_size(user_size: str, listing_size: str) -> bool:
+    """
+    True if a listing's size fits the size the user asked for.
+
+    Only call this when the user actually gave a size. "No size given" means
+    skip the size filter entirely — that's search_listings' job, not this one.
+
+    Rules:
+        - Unreadable on either side → False.
+        - Adjustable one-size listings match any letter size.
+        - Different kinds never match (a shoe 9 never matches a W30).
+        - letter: the two sets share a size ("m" matches "s/m").
+        - waist:  waists equal; lengths must also be equal, but only when
+                  both sides give one ("w30 l30" still matches "W30").
+        - shoe:   numbers equal ("8.5" matches "US 8.5").
+    """
+    user = parse_size(user_size)
+    listing = parse_size(listing_size)
+    if user is None or listing is None:
+        return False
+
+    if listing["kind"] == "one_size" and listing["adjustable"] and user["kind"] == "letter":
+        return True
+
+    if user["kind"] != listing["kind"]:
+        return False
+
+    kind = user["kind"]
+    if kind == "one_size":
+        return True
+    if kind == "letter":
+        return bool(user["sizes"] & listing["sizes"])
+    if kind == "shoe":
+        return user["size"] == listing["size"]
+    if kind == "waist":
+        if user["waist"] is not None and user["waist"] != listing["waist"]:
+            return False
+        if user["length"] is not None and listing["length"] is not None:
+            return user["length"] == listing["length"]
+        return True
+    return False
+
+
+# ── Keyword matching (used by search_listings) ────────────────────────────────
+
+# Words that show up in almost every query or listing and say nothing about
+# the item. Without this, "looking for a vintage tee" scores every listing.
+STOPWORDS = {
+    "a", "an", "the", "and", "or", "for", "with", "in", "on", "of", "to", "at",
+    "i", "im", "me", "my", "want", "need", "looking", "find", "some",
+    "something", "any", "anything", "that", "this", "is", "it", "but",
+    "like", "under", "over", "size", "price",
+}
+
+
+def text_to_words(text: str | None) -> set[str]:
+    """
+    Turn text into a set of lowercase keywords, the same way for queries and
+    listings, so the two can be compared whole word to whole word.
+
+    "Levi's 501 Jeans — Medium Wash" → {"levi", "501", "jean", "medium", "wash"}
+
+    Comparing whole words, never substrings, is the point: "hat" in "that" is
+    True, but "hat" is not in {"that"}.
+    """
+    if not text:
+        return set()
+
+    text = text.lower().replace("'", "").replace("’", "")   # "levi's" → "levis"
+    text = re.sub(r"[^a-z0-9]+", " ", text)                  # punctuation → spaces
+
+    words = set()
+    for word in text.split():
+        if word in STOPWORDS:
+            continue
+        # Plurals: "tees" → "tee", "jeans" → "jean". Skip "-ss" so "dress"
+        # stays "dress". Done on both sides, so the two always agree.
+        if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
+            word = word[:-1]
+        words.add(word)
+    return words
+
+
+def score_listing(query_words: set[str], item: dict) -> int:
+    """
+    How well one listing matches the query's words.
+
+    A word found in what the item IS (title, tags, category, colors, brand,
+    platform) is worth 2. A word found only in the description is worth 1,
+    because descriptions often mention other items — "layering with a long
+    tee" on a pair of cargo pants shouldn't rank with an actual tee.
+    """
+    strong = text_to_words(" ".join([
+        item["title"],
+        item["category"],
+        " ".join(item["style_tags"]),
+        " ".join(item["colors"]),
+        item["platform"],
+        item["brand"] or "",          # brand is None for most listings
+    ]))
+    weak = text_to_words(item["description"]) - strong
+
+    return 2 * len(query_words & strong) + len(query_words & weak)
 
 
 # ── Tool 1: search_listings ───────────────────────────────────────────────────
@@ -78,8 +289,26 @@ def search_listings(
     Test it from a terminal before you move on:
         python -c "from tools import search_listings; print(search_listings('graphic tee', max_price=30))"
     """
-    # TODO: replace this with your implementation
-    return []
+
+    listings = load_listings()
+
+    # Filters run only when a value was given. No size means "any size".
+    if max_price is not None:
+        listings = [item for item in listings if item["price"] <= max_price]
+    if size:
+        listings = [item for item in listings if compare_size(size, item["size"])]
+
+    # Score by how many of the query's words each listing contains.
+    query_words = text_to_words(description)
+    scored = []
+    for item in listings:
+        score = score_listing(query_words, item)
+        if score > 0:
+            scored.append((score, item))
+
+    # Highest score first. Ties keep the order they had in the data.
+    scored.sort(key=lambda pair: pair[0], reverse=True)
+    return [item for score, item in scored[:config.SEARCH_RESULT_LIMIT]]
 
 
 # ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
