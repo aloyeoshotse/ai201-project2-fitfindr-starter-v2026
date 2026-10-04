@@ -398,6 +398,19 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
 
+FIT_CARD_SYSTEM = (
+    "You write captions for thrift finds, the kind someone posts with a photo "
+    "of their outfit. Write 2 to 4 sentences in a casual first-person voice. "
+    "Mention the item, its price, and the platform it came from once each, "
+    "writing the price and platform exactly as given. "
+    "Refer to the item naturally, not by its full listing title. "
+    "Be specific about the vibe: name real pieces from the outfit instead of "
+    "generic praise like 'so cute' or 'obsessed'. "
+    "It should not read like a listing: no sizes, condition, or bullet points. "
+    "Plain text, no hashtags, at most two emojis."
+)
+
+
 def create_fit_card(outfit: str, new_item: dict) -> str:
     """
     Write a short caption someone would actually post about the find.
@@ -432,5 +445,16 @@ def create_fit_card(outfit: str, new_item: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import create_fit_card; from utils.data_loader import load_listings; print(create_fit_card('jeans and white sneakers', load_listings()[0]))"
     """
-    # TODO: replace this with your implementation
-    return ""
+
+    if not outfit or not outfit.strip():
+        return "No outfit suggestion to build a caption from."
+  
+    prompt = (
+        f"The find:\n{describe_item(new_item)}\n"
+        f"Price: ${new_item['price']:.2f}\n"
+        f"Platform: {new_item['platform']}\n\n"
+        f"How I'm styling it:\n{outfit}\n\n"
+        "Pick the outfit you like best from above and write the caption about it."
+    )
+    caption = generate(prompt, system=FIT_CARD_SYSTEM)
+    return caption.strip() or "Couldn't write a caption for this find. Try again."
