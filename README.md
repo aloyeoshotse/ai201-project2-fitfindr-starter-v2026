@@ -102,7 +102,7 @@ The inputs:
      The grader checks your code against what you claim here, so the file and
      function have to be real. -->
 
-**Branch rule:** If suggest_outfit receives an empty wardrobe, ask the model to generate a general styling suggestion. Otherwise, format the wardrobe items into the prompt and prompt the LLM for specific combinations naming pieces that the user already owns.
+**Branch rule:** If `search_listings` returns an empty list, put a message in `session["error"]` that says what the user could change (loosen the size, raise the price limit, or try different words) and return the session without calling `suggest_outfit`. Otherwise, take the first result as `session["selected_item"]` and continue to `suggest_outfit`.
 
 **Where it lives:** `agent.py::run_agent`
 
