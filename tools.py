@@ -313,6 +313,40 @@ def search_listings(
 
 # ── Tool 2: suggest_outfit ────────────────────────────────────────────────────
 
+OUTFIT_SYSTEM = (
+    "You are a stylist helping someone decide whether to buy a thrifted item. "
+    "Suggest one or two complete outfits built around that item. "
+    "Mention the item by its title at least once. "
+    "Write each outfit as a short paragraph of two or three sentences, "
+    "specific about pieces, colors, and the overall vibe. "
+    "Only say the user owns a piece if it appears in the wardrobe list you're given. "
+    "If there is no wardrobe list, suggest general pieces and never say the user owns anything. "
+    "Plain text only: no headings, no markdown, no questions back to the user."
+)
+
+
+def describe_item(item: dict) -> str:
+    """One listing as a multi-line block for a prompt."""
+    return (
+        f"{item['title']}\n"
+        f"Category: {item['category']}\n"
+        f"Colors: {', '.join(item['colors'])}\n"
+        f"Style: {', '.join(item['style_tags'])}\n"
+        f"Description: {item['description']}"
+    )
+
+
+def describe_wardrobe(wardrobe: dict) -> str:
+    """The user's wardrobe as a bulleted list for a prompt, one piece per line."""
+    lines = []
+    for piece in wardrobe["items"]:
+        line = f"- {piece['name']} ({piece['category']}; {', '.join(piece['colors'])})"
+        if piece.get("notes"):                 # notes is optional and often None
+            line += f" — {piece['notes']}"
+        lines.append(line)
+    return "\n".join(lines)
+
+
 def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
     """
     Given a thrifted item and the user's wardrobe, suggest one or two outfits.
@@ -341,8 +375,25 @@ def suggest_outfit(new_item: dict, wardrobe: dict) -> str:
     Test it from a terminal before you move on:
         python -c "from tools import suggest_outfit; from utils.data_loader import get_example_wardrobe, load_listings; print(suggest_outfit(load_listings()[0], get_example_wardrobe()))"
     """
-    # TODO: replace this with your implementation
-    return ""
+    if not wardrobe.get("items"):
+        prompt = (
+            f"The item:\n{describe_item(new_item)}\n\n"
+            "The user hasn't saved any clothes yet. "
+            "Suggest general pieces that would pair well with it."
+        )
+    else:
+        prompt = (
+            f"The item:\n{describe_item(new_item)}\n\n"
+            f"The user's wardrobe:\n{describe_wardrobe(wardrobe)}\n\n"
+            "Build each outfit around the item using pieces from this wardrobe, "
+            "naming each piece exactly as it's written in the list. "
+            "If the wardrobe is missing something an outfit needs, like shoes, "
+            "you may suggest a general piece, but make clear the user doesn't own it."
+        )
+
+    outfit = generate(prompt, system=OUTFIT_SYSTEM)
+    return outfit.strip() or "Couldn't come up with an outfit for this item. Try again."
+    
 
 
 # ── Tool 3: create_fit_card ───────────────────────────────────────────────────
