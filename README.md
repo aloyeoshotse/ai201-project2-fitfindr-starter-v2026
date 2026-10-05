@@ -41,6 +41,7 @@
 
 <!-- Three or four sentences: what a user asks for, and what they get back. -->
 
+FitFindr helps you decide whether a thrifted item is worth buying. You describe what you're looking for in plain language, like "vintage graphic tee under $30, size M," and it searches secondhand listings from Depop, Poshmark and thredUp for the best match within your size and budget. It then suggests one or two outfits built around that item using clothes you already own (or general styling ideas if your wardrobe is empty), and writes a short caption you could post about the find. If nothing matches, it tells you what to change: your size, your price limit, or your wording.
 
 
 ---
@@ -106,9 +107,9 @@ The inputs:
 
 **Where it lives:** `agent.py::run_agent`
 
-**How the query is parsed:** <!-- regex, string splitting, or asking the model — say which -->
+**How the query is parsed:** Asking the model. `agent.py::parse_query` sends the query with a system prompt asking for JSON with `description`, `size` and `max_price`, at temperature 0 so the same query parses the same way. If the reply isn't valid JSON, it falls back to searching the whole query with no filters.
 
-**What moves through the session:** <!-- which fields, in what order -->
+**What moves through the session:** `query` → `parsed` (description, size, max_price) → `search_results` → `selected_item` (the first result) → `outfit_suggestion` → `fit_card`. On an empty search, `error` is set and everything after `search_results` stays `None`.
 
 ---
 
@@ -165,15 +166,15 @@ Finally found the perfect pair of broken-in denim to wear with my crisp white sn
 
 **Moment 1**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* I asked Claude to finish `search_listings` by scoring each listing on keyword overlap with the description.
+- *What came back:* A scorer that counted every word the query and listing shared equally, whether it was in the title, the tags, or the description. When I ran `search_listings('graphic tee', max_price=30)`, Low-Rise Cargo Pants showed up in the results. Its description says "Great for layering with a long tee," so it matched "tee." The Mesh Long-Sleeve Top ("layering under a graphic tee") ranked above an actual band tee, and a sweatshirt matched "graphic" from "No graphics, clean."
+- *What I changed:* I had the scoring weighted by where the word appears: a match in the title, style tags, category, colors, brand or platform counts 2, and a match only in the description counts 1. Descriptions often mention other items, so they shouldn't count as much as what the item actually is. After the change, all three real tees tied at the top and the pants and sweatshirt dropped to the bottom.
 
 **Moment 2**
 
-- *What I asked for:*
-- *What came back:*
-- *What I changed:*
+- *What I asked for:* How to parse the user's query into a description, a size, and a max price for `search_listings`.
+- *What came back:* Claude recommended regex, because it's deterministic and costs no API calls.
+- *What I changed:* I chose to have the model parse it instead (`agent.py::parse_query`, temperature 0, JSON output with a fallback if the reply isn't valid JSON). Testing showed it handled phrasings regex would struggle with, like "nothing over 50" and "black boots in a 9." But it read "a large tote bag" as size `large`, which would have filtered out every bag, since bags are "One Size." I added a rule to the system prompt that words describing the item rather than a clothing size, like "large tote" or "small bag," belong in the description. After that, "a large tote bag" parsed with no size, and "graphic tee in a large" still parsed `large` as the size.
 
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
