@@ -46,18 +46,15 @@ Given a query that matches no listings, the agent stops before calling
 <!-- Why is 5 of 5 reasonable here when criterion 1 isn't? What's different
      about this path? -->
 
-This path never reaches the model. Parsing and search are plain code, and the
-stop is an `if` on an empty list in `run_agent`. The cheapest listing in the
-data is $12, so "under $5" returns an empty list on every run, and the branch
-takes the same path every time. With no randomness on this path, one miss in
-five means the branch is broken, not unlucky.
+The only model call on this path is parsing, which runs at temperature 0, so the same query parses the same way almost every time. Search and the stop (an if on an empty list in run_agent) are plain code. Even if parsing got the size or price wrong, the query's keywords match no listing on their own, so the branch fires either way. One miss in five means the branch is broken, not unlucky.
 
 ---
 
 ## 3. Something about state
 
 Given a query that returns at least one listing, the outfit suggestion names the selected item, and the fit card
-shows that item's title, price and platform, with no other listing mentioned — 4 of 5 tries, each with a different query.
+names that item recognizably (e.g. "butterfly tee" for the Y2K Baby Tee) with its exact price and platform, with no
+other listing mentioned — 4 of 5 tries, each with a different query.
 <!-- YOU WRITE THIS ONE.
 
      How would you know that the item your search found is the same item the
@@ -73,7 +70,9 @@ shows that item's title, price and platform, with no other listing mentioned —
 **Why this target:**
 
 The item reaches both tools through the session, which is plain code, so the handoff itself should never be wrong. 
-The slack is for the model's writing: it may shorten or paraphrase the title, so one miss in five is allowed. 
+The slack is for the model's writing: it may leave the item unnamed or describe it too loosely to recognize, so one
+miss in five is allowed. The exact price and platform are the real state check, since the wrong item would show the
+wrong ones. 
 Details from a different listing are never allowed, because that's a state bug, not the model's wording.
 
 ---
@@ -120,8 +119,9 @@ the ceiling - 5 out of 5 times.
 
 **Why this target:**
 
-Size and price are hard filters in plain code. No model is involved, and the same query returns the same 
-listings every time, so one wrong listing is a bug, not bad luck.
+Once the query is parsed, size and price are hard filters in plain code. Parsing is the only model call, and it
+runs at temperature 0, so the same query parses the same way and returns the same listings every time. One wrong
+listing is a bug, not bad luck.
 
 ---
 
