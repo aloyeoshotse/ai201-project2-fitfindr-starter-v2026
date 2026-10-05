@@ -13,10 +13,12 @@ Build and test your three tools in `tools.py` first. Then come here.
     python agent.py          runs both example paths below
 """
 
+import json
+
 import config
 import trace
 from tools import search_listings, suggest_outfit, create_fit_card
-from generate import ModelUnavailable
+from generate import generate, ModelUnavailable
 
 
 # ── session state ─────────────────────────────────────────────────────────────
@@ -45,6 +47,67 @@ def new_session(query: str, wardrobe: dict) -> dict:
         "fit_card": None,            # what create_fit_card returned
         "error": None,               # set when the run ended early
     }
+
+
+# ── query parsing ─────────────────────────────────────────────────────────────
+
+PARSE_SYSTEM = (
+    "You pull shopping filters out of a thrift-store search. "
+    "Reply with only a JSON object with exactly these keys:\n"
+    '  "description": the words describing the item itself (type, style, '
+    "color, brand), without the size or price;\n"
+    '  "size": the size exactly as the user wrote it (e.g. "M", "W30 L30", '
+    '"9", "petite"), or null if they gave none;\n'
+    '  "max_price": the most they will pay, as a number, or null if they '
+    "gave none.\n"
+    "Words that describe the item rather than a clothing size, like "
+    "'large tote' or 'small bag', belong in the description. "
+    "Never guess a size or price the user didn't state. "
+    "No explanation and no code fences, just the JSON."
+)
+
+
+def parse_query(query: str) -> dict:
+    """
+    Ask the model to split a query into description, size, and max_price.
+
+    "vintage graphic tee under $30, size M"
+        → {"description": "vintage graphic tee", "size": "M", "max_price": 30.0}
+
+    The size comes back as the user wrote it — tools.parse_size does the
+    normalizing, so "petite" still reaches search and fails there, on purpose.
+
+    Temperature 0, so the same query parses the same way every time. If the
+    reply isn't usable JSON, fall back to searching the whole query with no
+    filters rather than crashing.
+    """
+    fallback = {"description": query, "size": None, "max_price": None}
+
+    reply = generate(query, system=PARSE_SYSTEM, temperature=0.0).strip()
+    # Models sometimes wrap JSON in ```json fences even when told not to.
+    reply = reply.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
+    try:
+        data = json.loads(reply)
+    except json.JSONDecodeError:
+        return fallback
+    if not isinstance(data, dict):
+        return fallback
+
+    description = data.get("description")
+    if not isinstance(description, str) or not description.strip():
+        description = query
+
+    size = data.get("size")
+    size = size.strip() if isinstance(size, str) and size.strip() else None
+
+    try:
+        max_price = float(data.get("max_price"))
+    except (TypeError, ValueError):   # null, missing, or not a number
+        max_price = None
+    if max_price is not None and max_price <= 0:
+        max_price = None
+
+    return {"description": description.strip(), "size": size, "max_price": max_price}
 
 
 # ── planning loop ─────────────────────────────────────────────────────────────
@@ -106,9 +169,54 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         than a stack trace. The import is already at the top of this file.
     """
     session = new_session(query, wardrobe)
+    count = 0
 
-    # TODO: delete these two lines and build the loop.
-    session["error"] = "The planning loop isn't built yet — see the TODO in agent.py."
+    # Step 3: parse the query — done by the model, see parse_query().
+    count += 1
+    trace.check_iterations(count)
+
+    session["parsed"] = parse_query(query)
+
+    # Step 4: search with what was parsed, then branch on the result.
+    count += 1
+    trace.check_iterations(count)
+
+    description = session["parsed"]["description"]
+    size = session["parsed"]["size"]
+    max_price = session["parsed"]["max_price"]
+    session["search_results"] = search_listings(description, size, max_price)
+    if not session["search_results"]:
+        # The branch: stop before suggest_outfit, and say what to change.
+        changes = []
+        if size:
+            changes.append(f"a different size than {size} (or no size)")
+        if max_price is not None:
+            changes.append(f"a price limit above ${max_price:.2f}")
+        changes.append("different words")
+        # ["a", "b", "c"] → "a, b or c"
+        if len(changes) == 1:
+            suggestion = changes[0]
+        else:
+            suggestion = ", ".join(changes[:-1]) + " or " + changes[-1]
+        session["error"] = f"Nothing matched '{description}'. Try {suggestion}."
+        return session
+
+    # Step 5: choose the best match — search already sorted it first.
+    session["selected_item"] = session["search_results"][0]
+
+    # Step 6: suggest outfits for that item from the user's wardrobe.
+    count += 1
+    trace.check_iterations(count)
+
+    session["outfit_suggestion"] = suggest_outfit(session["selected_item"], session["wardrobe"])
+
+    # Step 7: write the fit card from the outfit and the item.
+    count += 1
+    trace.check_iterations(count)
+
+    session["fit_card"] = create_fit_card(session["outfit_suggestion"], session["selected_item"])
+
+    # Step 8: done — error is still None, so the caller knows the run finished.
     return session
 
 
