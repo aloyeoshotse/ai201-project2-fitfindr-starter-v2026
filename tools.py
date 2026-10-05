@@ -71,7 +71,7 @@ def parse_size(text: str | None) -> dict | None:
     if not isinstance(text, str):
         return None
 
-    text = text.strip()
+    text = text.lower().strip()
     adjustable = "adjustable" in text                # check before parentheses go
     text = re.sub(r"\(.*?\)", " ", text)             # "xl (oversized)" → "xl"
     text = re.sub(r"^size\s*:?\s*", "", text.strip())  # "size 9" → "9"
