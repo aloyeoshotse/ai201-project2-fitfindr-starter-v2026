@@ -123,8 +123,17 @@ The inputs:
 **One full query**
 
 ```
-$ python app.py ask '...'
+$ python app.py ask 'vintage graphic tee under $30, size M'
 
+  Found:    Y2K Baby Tee — Butterfly Print — $18.0 on depop
+
+  Outfit:   Pair the Y2K Baby Tee — Butterfly Print with baggy straight-leg jeans, dark wash to lean into authentic early 2000s street style. Add a brown leather belt to define the waist and finish the look with chunky white sneakers for a casual, nostalgic daytime vibe.
+
+Layer the Y2K Baby Tee — Butterfly Print underneath the oversized grey crewneck sweatshirt paired with wide-leg khaki trousers for a comfortable yet stylish contrast of proportions. Complete the outfit with black combat boots to give the soft graphic top a slightly edgier finish.
+
+  Fit card: Scored this little butterfly tee on depop for only $18.00 and it’s basically my entire middle school mood board come to life. I paired it with my favorite baggy dark wash jeans and a brown leather belt to lean into that classic early 2000s street style. Just added some chunky white sneakers to finish the whole nostalgic daytime vibe 🦋👟
+
+0 model calls this session, 3 served from cache
 ```
 
 **The three tools, tested one at a time**
