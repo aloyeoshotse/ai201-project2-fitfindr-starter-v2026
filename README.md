@@ -205,17 +205,107 @@ Finally found the perfect pair of broken-in denim to wear with my crisp white sn
 
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. A matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. An impossible query stops before the second tool | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. The selected item reaches both tools intact | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. Fit card has exact price, platform, 2–4 sentences | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5. Size and price filters hold on every result | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
 
-**Real output from one try**, pasted as text, naming the file and function
-that produced it:
+Criterion 3 says "each with a different query", so its five tries are try 1 of
+five separate scenarios: Levi's jeans, silk slip dress, leather bomber, cargo
+pants and knit cardigan. Full output for every try is in
+`results/run_2026-10-07_1942_before.md`.
+
+**Real output for each criterion from one try**, pasted as text:
+
+**Criterion 1 — matching query completes** — try 1, from `agent.py::run_agent`, run by `run_eval.py::main`; saved in `results/run_2026-10-07_1942_before.md`
 
 ```
+Query: vintage graphic tee under $30
+stopped early: no
+selected_item: Y2K Baby Tee — Butterfly Print ($18.0, depop)
+search_results: 10
 
+[1] parse_query
+      in:  vintage graphic tee under $30
+      out: {'description': 'vintage graphic tee', 'size': None, 'max_price': 30.0}
+[2] search_listings
+      in:  {'description': 'vintage graphic tee', 'size': None, 'max_price': 30.0}
+      out: 10 items: Y2K Baby Tee — Butterfly Print, Graphic Tee — 2003 Tour Bootleg Style, Vintage Band Tee — Faded Grey … +7 more
+[3] suggest_outfit
+      in:  new_item=Y2K Baby Tee — Butterfly Print, wardrobe=10 items
+      out: You should definitely buy the Y2K Baby Tee — Butterfly Print because it is a versatile piece that easily bridg…
+[4] create_fit_card
+      in:  outfit=<654 chars>, new_item=Y2K Baby Tee — Butterfly Print
+      out: Scored this little butterfly tee on depop for $18.00 and it fits right into my rotation. I paired it with some…
+
+Fit card:
+Scored this little butterfly tee on depop for $18.00 and it fits right into my rotation. I paired it with some baggy dark wash straight-leg jeans and chunky white sneakers for an easy street-style look. Threw on my black crossbody bag to finish it off. 🦋
+```
+
+**Criterion 2 — impossible query stops early** — try 1, from `agent.py::run_agent`, run by `run_eval.py::main`; saved in `results/run_2026-10-07_1942_before.md`
+
+```
+Query: designer ballgown size XXS under $5
+stopped early: yes — Nothing matched 'designer ballgown'. Try a different size than XXS (or no size), a price limit above $5.00 or different words.
+selected_item: (none)
+search_results: 0
+
+[1] parse_query
+      in:  designer ballgown size XXS under $5
+      out: {'description': 'designer ballgown', 'size': 'XXS', 'max_price': 5.0}
+[2] search_listings
+      in:  {'description': 'designer ballgown', 'size': 'XXS', 'max_price': 5.0}
+      out: [] (empty)
+```
+
+**Criterion 3 — the item reaches both tools** — try 1 (Levi's jeans scenario), from `agent.py::run_agent`, run by `run_eval.py::main`; saved in `results/run_2026-10-07_1942_before.md`
+
+```
+Query: levis jeans
+stopped early: no
+selected_item: Vintage Levi's 501 Jeans — Medium Wash ($38.0, depop)
+search_results: 4
+
+Outfit suggestion:
+For a relaxed streetwear look, pair the Vintage Levi's 501 Jeans — Medium Wash with the white ribbed tank top and the oversized grey crewneck sweatshirt layered on top. Finish this effortless everyday vibe with the chunky white sneakers and the black crossbody bag.
+
+For a slightly edgy, vintage-inspired outfit, combine the Vintage Levi's 501 Jeans — Medium Wash with the black cropped zip hoodie and the vintage black denim jacket. Ground the ensemble with the black combat boots, cinch the waist with the brown leather belt, and carry the black crossbody bag.
+
+Fit card:
+Found these exact vintage denim jeans on depop for $38.00 and they were totally worth the hunt. Threw them on with a black cropped zip hoodie and a vintage black denim jacket for that broken-in look. Grounded the whole fit with some heavy black combat boots and my trusty black crossbody bag. 🖤
+```
+
+**Criterion 4 — the fit card** — try 1, from `agent.py::run_agent`, run by `run_eval.py::main`; saved in `results/run_2026-10-07_1942_before.md`
+
+```
+Query: suede chelsea boots
+stopped early: no
+selected_item: Suede Chelsea Boots — Tan ($44.0, poshmark)
+search_results: 1
+
+Fit card:
+Threw on these tan suede chelsea boots with some baggy dark wash denim and a white ribbed tank. Layered up a vintage black denim jacket and a brown leather belt to lean into that rugged western edge. Snagged them on Poshmark for $44.00 and they're going to be on heavy rotation all fall 🤠
+```
+
+**Criterion 5 — size and price filters** — try 1, from `agent.py::run_agent`, run by `run_eval.py::main`; saved in `results/run_2026-10-07_1942_before.md`. The run log only lists titles, so the sizes and prices below come from calling `tools.py::search_listings` directly with the same parsed inputs
+
+```
+Query: graphic tee size S under $25
+stopped early: no
+selected_item: Y2K Baby Tee — Butterfly Print ($18.0, depop)
+search_results: 2
+
+[1] parse_query
+      in:  graphic tee size S under $25
+      out: {'description': 'graphic tee', 'size': 'S', 'max_price': 25.0}
+[2] search_listings
+      in:  {'description': 'graphic tee', 'size': 'S', 'max_price': 25.0}
+      out: 2 items: Y2K Baby Tee — Butterfly Print, Mesh Long-Sleeve Top — Black
+
+search_listings('graphic tee', 'S', 25.0):
+Y2K Baby Tee — Butterfly Print | size S/M | $18.00
+Mesh Long-Sleeve Top — Black | size S/M | $15.00
 ```
 
 ---

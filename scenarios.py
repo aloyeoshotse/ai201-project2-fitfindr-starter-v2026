@@ -35,18 +35,56 @@ SCENARIOS = [
         "wardrobe": "empty",
         "criterion": None,
     },
-    # TODO: add what your criteria 3, 4 and 5 need.
-    #
-    # Set "criterion" to the number in criteria.md that the scenario tests.
-    # "criterion": None means a diagnostic run — useful to have, but it isn't
-    # one of your five, and run_eval.py marks it as such in the table.
-    #
-    # For a state criterion, any normal query works — what you're checking is
-    # what ends up in the session, not what the user typed.
-    #
-    # For a fit-card criterion, you probably want the SAME query listed more
-    # than once, or several different items, depending on what your criterion
-    # actually says.
+    # Criterion 3 — state. "Each with a different query", so five scenarios,
+    # one per item. Each one's top result is a different listing, so a wrong
+    # handoff would show up as the wrong title, price or platform. Judge try 1
+    # of each row; the five rows together are the five tries.
+    {
+        "name": "state: levi's jeans",
+        "query": "levis jeans",
+        "wardrobe": "example",
+        "criterion": 3,
+    },
+    {
+        "name": "state: silk slip dress",
+        "query": "silk slip dress",
+        "wardrobe": "example",
+        "criterion": 3,
+    },
+    {
+        "name": "state: leather bomber",
+        "query": "leather bomber jacket under $80",
+        "wardrobe": "example",
+        "criterion": 3,
+    },
+    {
+        "name": "state: cargo pants",
+        "query": "cargo pants",
+        "wardrobe": "example",
+        "criterion": 3,
+    },
+    {
+        "name": "state: knit cardigan",
+        "query": "chunky knit cardigan",
+        "wardrobe": "example",
+        "criterion": 3,
+    },
+    {
+        # Criterion 4 — the fit card. The same item five times, so the five
+        # captions can be checked for price, platform and length side by side.
+        "name": "fit card: chelsea boots",
+        "query": "suede chelsea boots",
+        "wardrobe": "example",
+        "criterion": 4,
+    },
+    {
+        # Criterion 5 — size and price filters together. Every result must be
+        # a size that fits S (S or S/M, never US 9 or XL) and cost $25 or less.
+        "name": "filters: size S under $25",
+        "query": "graphic tee size S under $25",
+        "wardrobe": "example",
+        "criterion": 5,
+    },
 ]
 
 WARDROBES = ("example", "empty")
