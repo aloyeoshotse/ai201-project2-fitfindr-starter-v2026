@@ -106,6 +106,7 @@ def cmd_examples(args):
 
 def _ask_one(query, wardrobe, use_trace):
     from agent import run_agent
+    import textwrap
     import trace as trace_module
 
     if use_trace:
@@ -118,11 +119,14 @@ def _ask_one(query, wardrobe, use_trace):
         print(f"  {session['error']}")
     else:
         item = session["selected_item"] or {}
-        print(f"  Found:    {item.get('title')} — ${item.get('price')} on {item.get('platform')}")
+        print("  Found:")
+        print(f"  {item.get('title')} — ${item.get('price'):.2f} on {item.get('platform')}")
         print()
-        print(f"  Outfit:   {session['outfit_suggestion']}")
+        print("  Outfit:")
+        print(textwrap.indent(session['outfit_suggestion'], "  "))
         print()
-        print(f"  Fit card: {session['fit_card']}")
+        print("  Fit card:")
+        print(textwrap.indent(session['fit_card'], "  "))
     print()
 
     if use_trace:
