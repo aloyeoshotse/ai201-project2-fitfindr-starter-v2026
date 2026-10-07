@@ -17,7 +17,7 @@ import json
 
 import config
 import trace
-from tools import search_listings, suggest_outfit, create_fit_card
+from tools import suggest_outfit, create_fit_card
 from generate import generate, ModelUnavailable
 from mcp_client import call_tool
 
@@ -178,6 +178,8 @@ def run_agent(query: str, wardrobe: dict) -> dict:
 
     session["parsed"] = parse_query(query)
 
+    trace.step("parse_query", inputs=query, returned=str(session["parsed"]))
+
     # Step 4: search with what was parsed, then branch on the result.
     count += 1
     trace.check_iterations(count)
@@ -190,6 +192,12 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         "size": size,
         "max_price": max_price
     })
+
+    trace.step("search_listings", 
+        inputs=str({"description": description,
+            "size": size,
+            "max_price": max_price}), 
+        returned=session["search_results"])
 
     if not session["search_results"]:
         # The branch: stop before suggest_outfit, and say what to change.
@@ -216,11 +224,21 @@ def run_agent(query: str, wardrobe: dict) -> dict:
 
     session["outfit_suggestion"] = suggest_outfit(session["selected_item"], session["wardrobe"])
 
+    trace.step("suggest_outfit", 
+               inputs=f"new_item={session['selected_item']['title']}, "
+                      f"wardrobe={len(session['wardrobe']['items'])} items",
+               returned=session["outfit_suggestion"])
+
     # Step 7: write the fit card from the outfit and the item.
     count += 1
     trace.check_iterations(count)
 
     session["fit_card"] = create_fit_card(session["outfit_suggestion"], session["selected_item"])
+
+    trace.step("create_fit_card", 
+               inputs=f"outfit=<{len(session['outfit_suggestion'])} chars>, "
+                      f"new_item={session['selected_item']['title']}",
+               returned=session["fit_card"])
 
     # Step 8: done — error is still None, so the caller knows the run finished.
     return session

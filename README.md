@@ -267,20 +267,55 @@ that produced it:
 **Happy path**
 
 ```
+(.venv) ai201-project2-fitfindr-starter-v2026 $ python app.py ask 'vintage graphic tee under $30, size M' --trace
+[1] parse_query
+      in:  vintage graphic tee under $30, size M
+      out: {'description': 'vintage graphic tee', 'size': 'M', 'max_price': 30.0}
+[2] search_listings
+      in:  {'description': 'vintage graphic tee', 'size': 'M', 'max_price': 30.0}
+      out: 9 items: Y2K Baby Tee — Butterfly Print, 90s Silk Slip Dress — Floral, Midi Length, Leather Belt — Brown, Braided … +6 more
+[3] suggest_outfit
+      in:  new_item=Y2K Baby Tee — Butterfly Print, wardrobe=10 items
+      out: Pair the Y2K Baby Tee — Butterfly Print with baggy straight-leg jeans, dark wash to lean into authentic early …
+[4] create_fit_card
+      in:  outfit=<541 chars>, new_item=Y2K Baby Tee — Butterfly Print
+      out: Scored this little butterfly tee on depop for only $18.00 and it’s basically my entire middle school mood boar…
 
+  Found:
+  Y2K Baby Tee — Butterfly Print — $18.00 on depop
+
+  Outfit:
+  Pair the Y2K Baby Tee — Butterfly Print with baggy straight-leg jeans, dark wash to lean into authentic early 2000s street style. Add a brown leather belt to define the waist and finish the look with chunky white sneakers for a casual, nostalgic daytime vibe.
+
+  Layer the Y2K Baby Tee — Butterfly Print underneath the oversized grey crewneck sweatshirt paired with wide-leg khaki trousers for a comfortable yet stylish contrast of proportions. Complete the outfit with black combat boots to give the soft graphic top a slightly edgier finish.
+
+  Fit card:
+  Scored this little butterfly tee on depop for only $18.00 and it’s basically my entire middle school mood board come to life. I paired it with my favorite baggy dark wash jeans and a brown leather belt to lean into that classic early 2000s street style. Just added some chunky white sneakers to finish the whole nostalgic daytime vibe 🦋👟
+
+0 model calls this session, 3 served from cache
 ```
 
 **Empty search**
 
 ```
+(.venv) ai201-project2-fitfindr-starter-v2026 $ python app.py ask 'designer ballgown size XXS under $5' --trace
+[1] parse_query
+      in:  designer ballgown size XXS under $5
+      out: {'description': 'designer ballgown', 'size': 'XXS', 'max_price': 5.0}
+[2] search_listings
+      in:  {'description': 'designer ballgown', 'size': 'XXS', 'max_price': 5.0}
+      out: [] (empty)
 
+  Nothing matched 'designer ballgown'. Try a different size than XXS (or no size), a price limit above $5.00 or different words.
+
+0 model calls this session, 1 served from cache
 ```
 
 **On the MCP move:** <!-- what changed in your code, and whether anything
 behaved differently afterwards. If the rewire didn't work, say exactly where it
 broke — the error text and the last thing that worked. That earns the point in
 full. -->
-
+On the MCP move: I registered search_listings in mcp_server.py with @mcp.tool(), using the same typed inputs as my Tool Inventory (description: str, size: str | None, max_price: float | None). I also wrote a description for an agent that can't see my code: it gives price in US dollars (inclusive), example size formats, the fields each result has, and says an empty list means no match. In agent.py::run_agent, I replaced the direct search_listings(description, size, max_price) call with call_tool("search_listings", {...}). Nothing behaved differently afterwards. I compared the direct and MCP results on three queries (a match, a no-match and one with no filters), and they were identical, including the empty case returning [].
 
 
 ---
