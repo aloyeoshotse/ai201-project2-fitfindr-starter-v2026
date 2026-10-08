@@ -330,14 +330,45 @@ Mesh Long-Sleeve Top — Black | size S/M | $15.00
 
 | # | Criterion | Target | Verdict | How I decided |
 |---|---|---|---|---|
-| 1 |  |  |  |  |
-| 2 |  |  |  |  |
-| 3 |  |  |  |  |
-| 4 |  |  |  |  |
-| 5 |  |  |  |  |
+| 1 | A matching query completes all three tools | 4 of 5 | MET (5/5) | All five tries called all three tools and returned a fit card; I checked that each trace reached `create_fit_card`. |
+| 2 | An impossible query stops before the second tool | 5 of 5 | MET (5/5) | All five tries stopped after `search_listings` returned `[]`, never called `suggest_outfit`, and the message named size, price and wording. |
+| 3 | The selected item reaches both tools intact | 4 of 5 | MET (5/5 scenarios) | I checked all 25 tries across the five queries. The outfit named the selected item in every try and no other listing's title appeared anywhere. 24 of 25 fit cards had the exact `$` price and platform; the one without is cargo pants try 5 (see below). Every scenario still has at least 4 of 5 passing tries. |
+| 4 | Fit card has exact price, platform, 2–4 sentences | 4 of 5 | MET (5/5, Chelsea boots only) | All five Chelsea boots cards contained `$44.00` and "poshmark" and were 2–3 sentences. This count covers only the Chelsea boots scenario; across all 25 fit cards in the run, 24 passed and one missed (cargo pants try 5). |
+| 5 | Size and price filters hold on every result | 5 of 5 | MET (5/5) | Every try parsed to size S and max $25 and returned the same two items, both S/M and under $25. |
 
 **Diagnoses**
 
+**No misses.** Being honest about the targets: criterion 1 was set too low. I
+allowed one miss for a failed model call, but across the whole run 45 of 45
+matching queries completed with a fit card, so that failure didn't happen once.
+I'd tighten it to 5 of 5.
+
+Criterion 3 is also weaker than it looks. "Recognizably" is a judgment call,
+and I passed "vintage denim jeans" for the Levi's 501s on price and platform
+alone. A stricter version would require the fit card to contain at least one
+distinctive word from the item's title (e.g. "Levi's" or "501").
+
+The one target I wouldn't tighten is criterion 4. Cargo pants try 5 (a
+different scenario from the five tries criterion 4 was scored on) failed the
+exact-price check, so allowing one miss in five is accurate.
+
+**Cargo pants try 5: model output.** The fit card wrote "twenty-seven dollars"
+instead of `$27.00`. This was not an input problem: `create_fit_card` passes
+`Price: $27.00` in the prompt (the same format as the other 24 tries), and the
+Platform line is passed the same way, which the card used correctly
+("Poshmark"). The tool and the session were fine. The cause is the prompt plus
+the sampling: `FIT_CARD_SYSTEM` says to write the price "exactly as given", but
+never says to keep the `$` and digits, and `TEMPERATURE` is 0.9, so on one try
+the model spelled the number out to sound like speech. The price was in the
+caption but failed the exact-price check. It was a one-off: the other 24 cards
+used `$` and digits. Fix: add "keep the price as digits with a $ sign, e.g.
+$27.00" to `FIT_CARD_SYSTEM`.
+
+**Criterion 3, looser naming.** Several cards referred to the item loosely
+("leather jacket" for the Leather Bomber, "khaki pants" for the cargo pants,
+"floral midi" for the slip dress, "a pair of denim" for the Levi's 501s). The
+system prompt tells the model not to use the full title, so this is expected,
+but it is the same weak spot noted above.
 
 
 ---

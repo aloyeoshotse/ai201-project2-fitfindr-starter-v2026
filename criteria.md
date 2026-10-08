@@ -75,6 +75,18 @@ miss in five is allowed. The exact price and platform are the real state check, 
 wrong ones. 
 Details from a different listing are never allowed, because that's a state bug, not the model's wording.
 
+> **Revised in unit 4:** Given a query that returns at least one listing, the
+> outfit suggestion contains the selected item's full title, and the fit card
+> contains at least one distinctive word from that title (not a generic word
+> like "vintage" or "jeans"), its exact price as `$` and digits, and its
+> platform, with no other listing's title mentioned — 4 of 5 tries, each with a
+> different query.
+>
+> **Why revised:** "Recognizably" wasn't checkable. In the before run I passed
+> "vintage denim jeans" for the Levi's 501s and "khaki pants" for the cargo
+> pants on judgment alone, and a different grader could have failed them. The
+> new version can be scored by checking the text for specific words.
+
 ---
 
 ## 4. Something about the fit card
