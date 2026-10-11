@@ -333,7 +333,7 @@ Mesh Long-Sleeve Top — Black | size S/M | $15.00
 | 1 | A matching query completes all three tools | 4 of 5 | MET (5/5) | All five tries called all three tools and returned a fit card; I checked that each trace reached `create_fit_card`. |
 | 2 | An impossible query stops before the second tool | 5 of 5 | MET (5/5) | All five tries stopped after `search_listings` returned `[]`, never called `suggest_outfit`, and the message named size, price and wording. |
 | 3 | The selected item reaches both tools intact | 4 of 5 | MET (5/5 scenarios) | I checked all 25 tries across the five queries. The outfit named the selected item in every try and no other listing's title appeared anywhere. 24 of 25 fit cards had the exact `$` price and platform; the one without is cargo pants try 5 (see below). Every scenario still has at least 4 of 5 passing tries. |
-| 4 | Fit card has exact price, platform, 2–4 sentences | 4 of 5 | MET (5/5, Chelsea boots only) | All five Chelsea boots cards contained `$44.00` and "poshmark" and were 2–3 sentences. This count covers only the Chelsea boots scenario; across all 25 fit cards in the run, 24 passed and one missed (cargo pants try 5). |
+| 4 | Fit card has exact price, platform, 2–4 sentences | 4 of 5 | MET (5/5, Chelsea boots only) | All five Chelsea boots cards contained `$44.00` and "poshmark" and were 2–3 sentences. This count covers only the Chelsea boots scenario; across all 45 fit cards in the run, 44 had the exact `$` price and one missed (cargo pants try 5). |
 | 5 | Size and price filters hold on every result | 5 of 5 | MET (5/5) | Every try parsed to size S and max $25 and returned the same two items, both S/M and under $25. |
 
 **Diagnoses**
@@ -448,25 +448,95 @@ On the MCP move: I registered search_listings in mcp_server.py with @mcp.tool(),
 
      `python run_eval.py --label after` -->
 
-**What I changed:**
+**What I changed:** One prompt, `FIT_CARD_SYSTEM` in `tools.py` (used by
+`create_fit_card`). Nothing else in the code changed. I added one sentence and
+extended another:
 
-**Which failure it was meant to fix:**
+```diff
+-    "Refer to the item naturally, not by its full listing title. "
++    "Always write the price as a dollar sign and digits, e.g. $27.00 — never spell it out in words. "
++    "Refer to the item naturally, not by its full listing title, but keep at least "
++    "one distinctive word from the title (e.g. 'Levi's' or '501', 'bomber', 'cargo', "
++    "'Chelsea'), not just a generic word like 'jacket' or 'pants'. "
+```
+
+**Which failure it was meant to fix:** Both problems my diagnosis traced to the
+fit card prompt (model output, not the tool or the session):
+
+- Cargo pants try 5 wrote "twenty-seven dollars" instead of `$27.00`, because
+  the prompt said "exactly as given" but never said to keep `$` and digits.
+- Cards named the item loosely ("leather jacket", "khaki pants", "vintage denim
+  jeans"), because the prompt told the model *not* to use the title and gave
+  it nothing to keep. This is what made criterion 3 unmeasurable, which is why
+  I revised it in `criteria.md`.
+
+They are two instructions, but one change: a rewrite of the one prompt both
+failures came from.
 
 ### Run Log — After
 
+Run file: `results/run_2026-10-11_1353_after.md`. Criterion 3 is scored against
+the **revised** wording in `criteria.md` (distinctive title word, `$` price,
+platform, full title in the outfit, no other listing); its five tries are again
+try 1 of the five state scenarios.
+
 | Criterion | Target | Try 1 | Try 2 | Try 3 | Try 4 | Try 5 | Verdict |
 |---|---|---|---|---|---|---|---|
-| 1.  |  |  |  |  |  |  |  |
-| 2.  |  |  |  |  |  |  |  |
-| 3.  |  |  |  |  |  |  |  |
-| 4.  |  |  |  |  |  |  |  |
-| 5.  |  |  |  |  |  |  |  |
+| 1. A matching query completes all three tools | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 2. An impossible query stops before the second tool | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 3. The selected item reaches both tools intact (revised) | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 4. Fit card has exact price, platform, 2–4 sentences | 4 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
+| 5. Size and price filters hold on every result | 5 of 5 | PASS | PASS | PASS | PASS | PASS | MET (5/5) |
 
-**Did it help, and how do I know:**
+**Before and after, side by side:**
 
-<!-- If it made things worse, say that. Honestly reported, that earns full
-     credit and is more interesting than one that worked. -->
+| Measure | Before | After |
+|---|---|---|
+| Criterion 3, revised wording, try 1 of each scenario | 1 / 5 (would be MISSED) | 5 / 5 (MET) |
+| Criterion 3, revised wording, all 25 tries | 12 / 25 | 22 / 25 |
+| Fit cards with the exact `$` price, whole run | 44 / 45 | 45 / 45 |
+| Criteria 1, 2, 4, 5 | MET | MET (no change) |
 
+The before run was officially scored against the original criterion 3 (MET,
+5/5). The "1 / 5" row re-scores those same before outputs against the revised
+wording so the comparison is like for like.
+
+**Real output from one try** (criterion 3, Levi's jeans, try 1, from
+`agent.py::run_agent` run by `run_eval.py::main`). Before, the card said "these
+exact vintage denim jeans"; after:
+
+```
+Query: levis jeans
+selected_item: Vintage Levi's 501 Jeans — Medium Wash ($38.0, depop)
+
+Fit card:
+Scored these 501s on depop for $38.00 and I'm already living in them. Paired them with a white ribbed tank top, an oversized grey crewneck sweatshirt, and chunky white sneakers for the easiest running-errands fit. 👖✨
+```
+
+**Did it help, and how do I know:** Yes for naming, probably for the price,
+with one caveat about how much credit the change deserves.
+
+- **Naming clearly improved.** Under the revised criterion 3, passes across all
+  25 state tries went from 12 to 22. Every Levi's card now says "501s" (before:
+  "vintage denim jeans", "a pair of denim") and every bomber card says
+  "bomber" (before: "leather jacket").
+- **Caveat: my examples leaked the test answers.** The words I gave the model
+  as examples ('501', 'bomber', 'cargo', 'Chelsea', and `$27.00`) come from my
+  own test items, so part of that gain is the model copying the example rather
+  than following the rule. The fairer evidence is the item whose words were
+  *not* in the prompt: the silk slip dress went from 2 of 5 to 5 of 5 ("slip
+  dress" or "silk midi" every time). If I did this again I'd use examples from
+  listings outside my scenarios.
+- **The price fix is weak evidence.** The spelled-out price happened once in
+  45 cards before, and 0 in 45 after. That's consistent with the fix working,
+  but at temperature 0.9 a one-in-45 failure could also just not have shown up.
+- **Nothing got worse.** Criteria 1, 2, 4 and 5 were MET again, and every fit
+  card still had the platform and stayed within 2–4 sentences.
+
+- **Three tries still fail the revised criterion 3**, none in a try 1 cell:
+  cargo pants tries 3 and 5 said "khaki pants" (no distinctive word), and knit
+  cardigan try 4's outfit suggestion didn't use the full title. The outfit
+  prompt wasn't changed, so that last one is outside what this change touched.
 
 
 ---
