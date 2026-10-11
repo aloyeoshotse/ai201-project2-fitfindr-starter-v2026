@@ -185,6 +185,18 @@ Finally found the perfect pair of broken-in denim to wear with my crisp white sn
 - *What came back:* Claude recommended regex, because it's deterministic and costs no API calls.
 - *What I changed:* I chose to have the model parse it instead (`agent.py::parse_query`, temperature 0, JSON output with a fallback if the reply isn't valid JSON). Testing showed it handled phrasings regex would struggle with, like "nothing over 50" and "black boots in a 9." But it read "a large tote bag" as size `large`, which would have filtered out every bag, since bags are "One Size." I added a rule to the system prompt that words describing the item rather than a clothing size, like "large tote" or "small bag," belong in the description. After that, "a large tote bag" parsed with no size, and "graphic tee in a large" still parsed `large` as the size.
 
+**Moment 3 (unit 4)**
+
+- *What I asked for:* Whether my `trace.step()` for `search_listings` was correct.
+- *What came back:* Claude said the call itself was right, but I had placed it after the empty-search branch, which returns early. On an impossible query the trace would end at `parse_query` with no record that search ran or came back empty, which is exactly the case a trace is for. It also pointed out that `trace.py` shortens a dict without a `title` to "dict with keys: …", so my traces showed input names but not values.
+- *What I changed:* I moved the `search_listings` trace call above the branch, and wrapped the inputs in `str(...)` (and an f-string summary for the outfit and fit card steps). The empty-path trace now shows `out: [] (empty)` before the stop, and every step shows real values.
+
+**Moment 4 (unit 4)**
+
+- *What I asked for:* A rewrite of `FIT_CARD_SYSTEM` to fix the spelled-out price and the loose item names my diagnosis found.
+- *What came back:* A prompt that worked (criterion 3 went from 12 to 22 of 25 passing tries), but the examples Claude put in it ('501', 'bomber', 'cargo', 'Chelsea', $27.00) came from my own test items. Claude flagged this itself after making the edit. Separately, a second Claude session reviewed my README and said 24 of 25 fit cards had the exact price; the run actually produced 45 fit cards, and the right number was 44 of 45.
+- *What I changed:* I kept the prompt so the after run measured one change, but reported the contamination in "Did it help" and used the silk slip dress (whose words weren't in the prompt) as the fairer evidence. I corrected the count to 44 of 45. Both taught me to check AI-reported numbers against the run file instead of copying them in.
+
 <!-- ═══════════════════════ UNIT 4 — THE TEST ═══════════════════════
 
      Don't fill these in during unit 3.
@@ -547,7 +559,45 @@ with one caveat about how much credit the change deserves.
      you did. "I ran out of time" is fine if it's true. Pretending nothing is
      left is not. -->
 
+No criterion is missed in the after run: all five are MET. But that's not the
+same as nothing being broken. Here is what's left, and why I stopped.
 
+**Criterion 3 still fails on 3 of 25 tries** (none in the scored try 1 cells).
+Cargo pants tries 3 and 5 still called the item "khaki pants", with no
+distinctive word from the title, and knit cardigan try 4's outfit suggestion
+didn't use the item's full title. *What I'd do:* the first two come from
+`FIT_CARD_SYSTEM`, which still lets "khaki" pass as the item's name; I'd name
+colors as not counting as distinctive. The third comes from `OUTFIT_SYSTEM`,
+which only says to mention the title "at least once", and on that try the model
+paraphrased it. I'd tighten that line to "use the exact title". *Why I stopped:*
+the unit allows one change, and these are a second and third change in a
+different prompt.
+
+**My improvement's evidence is partly contaminated.** The examples in the new
+prompt line ('501', 'bomber', 'cargo', 'Chelsea', $27.00) are from my own test
+items, so the after run partly measures the model copying examples. *What I'd
+do:* swap them for words from listings outside `scenarios.py` (e.g.
+'corduroy', 'shacket', $52.00) and run `python run_eval.py --label after` again.
+*Why I stopped:* changing the prompt again would be a second change after the
+measurement, so I reported the caveat instead.
+
+**The price fix isn't proven.** One spelled-out price in 45 cards before and
+none in 45 after is too rare a failure to show a difference at temperature 0.9.
+*What I'd do:* run `python run_eval.py --tries 20` on the fit-card scenarios
+so the failure has a real chance to appear.
+
+**Search returns weak matches that no criterion catches.** "vintage graphic
+tee size M under $30" returned 9 items, and the second and third were a silk
+slip dress and a leather belt. Scoring has no notion of clothing type, so a
+tag like "vintage" is enough to match. The agent always takes the top result,
+so it hasn't hurt a run yet, but any criterion about result quality would
+catch it. *What I'd do:* map words like "tee" or "jeans" to a listing
+`category` and filter or boost on it. *Why I stopped:* none of my five
+criteria measure it, so it wasn't what my diagnosis pointed at.
+
+**Criterion 1's target is too easy.** 45 of 45 matching runs completed across
+the whole test, so "4 of 5" can't really fail. I'd raise it to 5 of 5, but I
+didn't revise it because it's still measurable; it's just set low.
 
 <!-- ═════════════════════════════════════════════════════════════════════
 
