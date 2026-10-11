@@ -404,7 +404,7 @@ but it is the same weak spot noted above.
 [1] parse_query
       in:  vintage graphic tee under $30, size M
       out: {'description': 'vintage graphic tee', 'size': 'M', 'max_price': 30.0}
-[2] search_listings
+[2] search_listings (via MCP)
       in:  {'description': 'vintage graphic tee', 'size': 'M', 'max_price': 30.0}
       out: 9 items: Y2K Baby Tee — Butterfly Print, 90s Silk Slip Dress — Floral, Midi Length, Leather Belt — Brown, Braided … +6 more
 [3] suggest_outfit
@@ -412,7 +412,7 @@ but it is the same weak spot noted above.
       out: Pair the Y2K Baby Tee — Butterfly Print with baggy straight-leg jeans, dark wash to lean into authentic early …
 [4] create_fit_card
       in:  outfit=<541 chars>, new_item=Y2K Baby Tee — Butterfly Print
-      out: Scored this little butterfly tee on depop for only $18.00 and it’s basically my entire middle school mood boar…
+      out: Just scored this little baby tee for $18.00 on depop and I am so obsessed with the pastel butterfly print. I p…
 
   Found:
   Y2K Baby Tee — Butterfly Print — $18.00 on depop
@@ -423,9 +423,9 @@ but it is the same weak spot noted above.
   Layer the Y2K Baby Tee — Butterfly Print underneath the oversized grey crewneck sweatshirt paired with wide-leg khaki trousers for a comfortable yet stylish contrast of proportions. Complete the outfit with black combat boots to give the soft graphic top a slightly edgier finish.
 
   Fit card:
-  Scored this little butterfly tee on depop for only $18.00 and it’s basically my entire middle school mood board come to life. I paired it with my favorite baggy dark wash jeans and a brown leather belt to lean into that classic early 2000s street style. Just added some chunky white sneakers to finish the whole nostalgic daytime vibe 🦋👟
+  Just scored this little baby tee for $18.00 on depop and I am so obsessed with the pastel butterfly print. I paired it with my favorite baggy straight-leg jeans and a brown leather belt to lean into that authentic early 2000s street style. Finished the look off with some chunky white sneakers for the easiest nostalgic daytime vibe 🦋✨
 
-0 model calls this session, 3 served from cache
+1 model calls this session, 2 served from cache, 425 prompt + 76 output tokens
 ```
 
 **Empty search**
@@ -435,7 +435,7 @@ but it is the same weak spot noted above.
 [1] parse_query
       in:  designer ballgown size XXS under $5
       out: {'description': 'designer ballgown', 'size': 'XXS', 'max_price': 5.0}
-[2] search_listings
+[2] search_listings (via MCP)
       in:  {'description': 'designer ballgown', 'size': 'XXS', 'max_price': 5.0}
       out: [] (empty)
 

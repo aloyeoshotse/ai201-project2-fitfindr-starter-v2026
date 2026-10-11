@@ -193,7 +193,7 @@ def run_agent(query: str, wardrobe: dict) -> dict:
         "max_price": max_price
     })
 
-    trace.step("search_listings", 
+    trace.step("search_listings (via MCP)", 
         inputs=str({"description": description,
             "size": size,
             "max_price": max_price}), 
