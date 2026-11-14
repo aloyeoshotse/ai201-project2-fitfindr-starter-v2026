@@ -14,12 +14,15 @@ Build and test your three tools in `tools.py` first. Then come here.
 """
 
 import json
+import time
 
 import config
+import runlog
 import trace
 from tools import suggest_outfit, create_fit_card
-from generate import generate, ModelUnavailable
-from mcp_client import call_tool
+import generate as generate_module
+from generate import generate, ModelUnavailable, QuotaGuard
+from mcp_client import call_tool, MCPError
 
 
 # ── session state ─────────────────────────────────────────────────────────────
@@ -47,6 +50,8 @@ def new_session(query: str, wardrobe: dict) -> dict:
         "outfit_suggestion": None,   # what suggest_outfit returned
         "fit_card": None,            # what create_fit_card returned
         "error": None,               # set when the run ended early
+        "stage": None,               # the step the run is in (or died in)
+        "error_type": None,          # exception class when a step failed
     }
 
 
@@ -115,6 +120,61 @@ def parse_query(query: str) -> dict:
 
 def run_agent(query: str, wardrobe: dict) -> dict:
     """
+    Run the loop once, never raise, and write one line to the run log.
+
+    Any failure inside a step (model down, MCP server silent, budget guard,
+    anything unexpected) is caught here and turned into session["error"] with
+    the stage that failed, so the caller always gets a session back.
+    """
+    session = new_session(query, wardrobe)
+    start = time.perf_counter()
+    calls_before = generate_module.call_count()
+    tokens_before = generate_module.token_counts()
+    try:
+        _run_agent(query, wardrobe, session)
+    except ModelUnavailable as exc:
+        _fail(session, exc, str(exc))
+    except MCPError as exc:
+        _fail(session, exc, f"Search is unavailable right now. {str(exc).splitlines()[0]}")
+    except QuotaGuard as exc:
+        _fail(session, exc, "This session hit its request budget, so the run was stopped.")
+    except Exception as exc:  # noqa: BLE001 — the loop must hand back a session
+        _fail(session, exc, f"Something went wrong in {session['stage']}: {exc}")
+
+    tokens_after = generate_module.token_counts()
+    if session["error_type"]:
+        status = "error"
+    elif session["error"]:
+        status = "no_results"
+    else:
+        status = "ok"
+    item = session["selected_item"] or {}
+    runlog.write({
+        "ts": runlog.now(),
+        "query": query,
+        "status": status,
+        "failed_stage": session["stage"] if status == "error" else None,
+        "error_type": session["error_type"],
+        "error": session["error"],
+        "parsed": session["parsed"] or None,
+        "results": len(session["search_results"]),
+        "selected": item.get("title"),
+        "fit_card": session["fit_card"],
+        "duration_s": round(time.perf_counter() - start, 2),
+        "model_calls": generate_module.call_count() - calls_before,
+        "prompt_tokens": tokens_after["prompt"] - tokens_before["prompt"],
+        "output_tokens": tokens_after["output"] - tokens_before["output"],
+    })
+    return session
+
+
+def _fail(session: dict, exc: Exception, message: str) -> None:
+    session["error"] = message
+    session["error_type"] = type(exc).__name__
+
+
+def _run_agent(query: str, wardrobe: dict, session: dict) -> dict:
+    """
     Run the loop once and return the finished session.
 
     Args:
@@ -169,13 +229,13 @@ def run_agent(query: str, wardrobe: dict) -> dict:
       • A handler for ModelUnavailable, so a bad key produces a message rather
         than a stack trace. The import is already at the top of this file.
     """
-    session = new_session(query, wardrobe)
     count = 0
 
     # Step 3: parse the query — done by the model, see parse_query().
     count += 1
     trace.check_iterations(count)
 
+    session["stage"] = "parse_query"
     session["parsed"] = parse_query(query)
 
     trace.step("parse_query", inputs=query, returned=str(session["parsed"]))
@@ -184,6 +244,7 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     count += 1
     trace.check_iterations(count)
 
+    session["stage"] = "search_listings"
     description = session["parsed"]["description"]
     size = session["parsed"]["size"]
     max_price = session["parsed"]["max_price"]
@@ -222,6 +283,7 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     count += 1
     trace.check_iterations(count)
 
+    session["stage"] = "suggest_outfit"
     session["outfit_suggestion"] = suggest_outfit(session["selected_item"], session["wardrobe"])
 
     trace.step("suggest_outfit", 
@@ -233,6 +295,7 @@ def run_agent(query: str, wardrobe: dict) -> dict:
     count += 1
     trace.check_iterations(count)
 
+    session["stage"] = "create_fit_card"
     session["fit_card"] = create_fit_card(session["outfit_suggestion"], session["selected_item"])
 
     trace.step("create_fit_card", 
