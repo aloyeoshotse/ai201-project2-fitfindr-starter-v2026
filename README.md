@@ -636,3 +636,20 @@ didn't revise it because it's still measurable; it's just set low.
 ---
 
 📖 **How to run this project: [RUNNING.md](RUNNING.md)**
+
+---
+
+## Capstone
+
+**What This Extends**
+
+FitFindr, my unit 3–4 agent: `agent.py::run_agent` parses a query with the model, searches listings over MCP, then calls the model twice (`suggest_outfit`, `create_fit_card`). What's new this unit is a failure-handling layer around the two things that can break at runtime, the model call (`generate.py::generate`) and the MCP call (`mcp_client.py::call_tool`), plus a structured run log that records every run, failed or not.
+
+**The Shape**
+
+Shape B, harden against failure. Today the happy path works and the only failure the loop handles is an empty search. A bad key, a hung model call, an MCP server that doesn't answer, or an empty model reply either hangs forever or ends in a stack trace, and `run_agent` leaves no record of any of it. I'm adding: a timeout on every model call and every MCP call, one retry for transient failures (timeouts, connection errors, server errors, an empty model reply), and a catch at the top of `run_agent` that turns any remaining failure into `session["error"]` with a readable message plus the stage that failed. Every run, including failures, writes one JSON line to a log.
+
+Out of scope, on purpose:
+- The category filter for `search_listings`. It's a capability, not hardening, and it has design decisions I haven't made.
+- The existing rate-limit pacing and retry in `generate.py`. It already works; I'm only adding timeouts and transient-error retries beside it.
+- Any change to the web UI (`app.py`, `serve.py`), the prompts, or hosting. This runs locally with logs (Path B).
