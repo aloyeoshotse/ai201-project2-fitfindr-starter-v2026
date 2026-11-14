@@ -215,9 +215,38 @@ def _explain(exc: Exception) -> str:
             f"AI201_MODEL in your .env, put it back. Otherwise post in the help "
             f"channel — this is not something you caused."
         )
-    if "connection" in message or "timeout" in message or "network" in message:
+    if "empty reply" in message:
+        return "The model answered with nothing, twice. Try again in a moment."
+    if "timeout" in message or "timed out" in message or "deadline" in message:
+        return (
+            f"The model took longer than {config.MODEL_TIMEOUT_S:.0f}s to answer, "
+            f"twice. Try again in a moment."
+        )
+    if "connection" in message or "network" in message:
         return "Couldn't reach the model. Check your internet connection and try again."
     return f"Couldn't reach the model: {exc}"
+
+
+class _EmptyReply(Exception):
+    """The service answered, but with no text."""
+
+
+_TRANSIENT_MARKERS = (
+    "timeout", "timed out", "deadline", "connection", "network",
+    "500", "502", "503", "504", "unavailable", "overloaded", "empty reply",
+)
+
+
+def _is_transient(exc: Exception) -> bool:
+    """A failure worth one more try: timeouts, dropped connections, 5xx, empty."""
+    if isinstance(exc, _EmptyReply):
+        return True
+    text = f"{type(exc).__name__} {exc}".lower()
+    return any(m in text for m in _TRANSIENT_MARKERS)
+
+
+def _short(exc: Exception) -> str:
+    return f"{type(exc).__name__}: {str(exc)[:80]}"
 
 
 def _retry_delay(exc: Exception, attempt: int) -> float:
@@ -296,6 +325,7 @@ def generate(
     _check_budget()
 
     last_error: Exception | None = None
+    transient_left = config.TRANSIENT_RETRIES
     for attempt in range(config.MAX_RETRIES):
         _wait_for_slot()
         try:
@@ -303,7 +333,11 @@ def generate(
             _call_times.append(time.monotonic())
             _session_calls += 1
 
-            call_config = {"temperature": temperature}
+            call_config = {
+                "temperature": temperature,
+                # milliseconds; without this a hung connection waits forever
+                "http_options": {"timeout": int(config.MODEL_TIMEOUT_S * 1000)},
+            }
             if system:
                 call_config["system_instruction"] = system
             kwargs = {
@@ -315,6 +349,8 @@ def generate(
             response = client.models.generate_content(**kwargs)
             _record_tokens(response)
             text = (response.text or "").strip()
+            if not text:
+                raise _EmptyReply("the model returned an empty reply")
 
             if use_cache:
                 _cache_write(key, text)
@@ -329,6 +365,15 @@ def generate(
                 or "rate" in message and "limit" in message
             )
             if not rate_limited:
+                if _is_transient(exc) and transient_left > 0:
+                    transient_left -= 1
+                    print(
+                        f"  [retry] transient model failure ({_short(exc)}). "
+                        f"Trying once more.",
+                        file=sys.stderr,
+                        flush=True,
+                    )
+                    continue
                 raise ModelUnavailable(_explain(exc)) from exc
             backoff = _retry_delay(exc, attempt)
             print(

@@ -31,6 +31,8 @@ import json
 import sys
 from pathlib import Path
 
+import config
+
 SERVER = Path(__file__).parent / "mcp_server.py"
 
 
@@ -55,17 +57,29 @@ def call_tool(name: str, arguments: dict):
     Raises:
         MCPError, with something readable in it.
     """
-    try:
-        return asyncio.run(_call(name, arguments))
-    except MCPError:
-        raise
-    except Exception as exc:  # noqa: BLE001 — re-raised readably below
-        raise MCPError(
-            f"Couldn't call '{name}' over MCP: {exc}\n"
-            f"Check that mcp_server.py runs on its own first:\n"
-            f"    python mcp_server.py\n"
-            f"If it exits immediately with an error, fix that before coming back here."
-        ) from exc
+    attempts = 1 + config.TRANSIENT_RETRIES
+    for attempt in range(1, attempts + 1):
+        try:
+            return asyncio.run(
+                asyncio.wait_for(_call(name, arguments), config.MCP_TIMEOUT_S)
+            )
+        except MCPError:
+            raise  # the server answered and said no; asking again won't change it
+        except asyncio.TimeoutError as exc:
+            if attempt < attempts:
+                continue
+            raise MCPError(
+                f"The search server didn't answer within "
+                f"{config.MCP_TIMEOUT_S:.0f}s (tried {attempts} times)."
+            ) from exc
+        except Exception as exc:  # noqa: BLE001 — re-raised readably below
+            if attempt < attempts:
+                continue
+            raise MCPError(
+                f"Couldn't call '{name}' over MCP: {exc}\n"
+                f"Check that mcp_server.py runs on its own first:\n"
+                f"    python mcp_server.py"
+            ) from exc
 
 
 async def _call(name: str, arguments: dict):

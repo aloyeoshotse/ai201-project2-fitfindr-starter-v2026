@@ -89,6 +89,21 @@ MAX_RETRIES = 5
 CACHE_DIR = ROOT / ".cache"
 
 
+# ─── Failure handling (capstone) ─────────────────────────────────────────────
+# Seconds to wait for one model call / one MCP call before giving up. Env
+# overrides exist so a test can force a timeout without editing code.
+MODEL_TIMEOUT_S = float(os.getenv("AI201_MODEL_TIMEOUT", "30"))
+MCP_TIMEOUT_S = float(os.getenv("AI201_MCP_TIMEOUT", "15"))
+
+# Extra attempts after a transient failure (timeout, connection error, 5xx,
+# empty model reply). One retry: enough to ride out a blip, short enough that
+# a dead service still fails in about twice the timeout.
+TRANSIENT_RETRIES = 1
+
+# One JSON line per agent run, failed or not.
+RUN_LOG = ROOT / "logs" / "runs.jsonl"
+
+
 # ─── Paths ───────────────────────────────────────────────────────────────────
 
 DATA_DIR = ROOT / "data"
