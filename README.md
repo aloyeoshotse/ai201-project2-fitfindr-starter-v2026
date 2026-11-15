@@ -653,3 +653,76 @@ Out of scope, on purpose:
 - The category filter for `search_listings`. It's a capability, not hardening, and it has design decisions I haven't made.
 - The existing rate-limit pacing and retry in `generate.py`. It already works; I'm only adding timeouts and transient-error retries beside it.
 - Any change to the web UI (`app.py`, `serve.py`), the prompts, or hosting. This runs locally with logs (Path B).
+
+**Running It**
+
+Path B, local with logs. It runs from one command, `python app.py ask 'vintage graphic tee under $30, size M'`, and every run appends a line to `logs/runs.jsonl`. The environment and the exact steps are in [RUNNING.md](RUNNING.md) under "Capstone". I followed them from a fresh clone: it installed and ran the agent end to end. Before I added my key, it stopped with a readable "model rejected your API key" message and logged the failed run.
+
+I didn't try hosting it. Two things stood in the way of treating this as a quick deploy: a free host gives 512 MB and each MCP call starts a second Python process, and on my network the model client hung on IPv6 until I forced IPv4 (see RUNNING.md).
+
+**Instrumentation**
+
+Every call to `agent.py::run_agent` writes one JSON line through `runlog.py::write`, including runs that stop early or fail. Fields:
+
+| Field | What it holds |
+|---|---|
+| `ts` | UTC timestamp |
+| `query` | what came in |
+| `status` | `ok`, `no_results` (the empty-search branch), or `error` (a step failed) |
+| `failed_stage` | the step that failed (`parse_query`, `search_listings`, `suggest_outfit`, `create_fit_card`), else null |
+| `error_type`, `error` | the exception class and the message the user sees |
+| `parsed` | the description, size and max_price the model pulled out of the query |
+| `results`, `selected` | how many listings matched, and the one chosen |
+| `fit_card` | what came out |
+| `duration_s` | seconds for the whole run, including any rate-limit waiting |
+| `model_calls`, `prompt_tokens`, `output_tokens` | what this run used |
+
+Ten completed runs from `measure_cost.py` (cache off), then one failed run where I forced the MCP search call to time out (`AI201_MCP_TIMEOUT=0.05`). The log file is `logs/runs.jsonl`:
+
+```json
+{"ts": "2026-11-15T16:34:29+00:00", "query": "vintage graphic tee under $30", "status": "ok", "failed_stage": null, "error_type": null, "error": null, "parsed": {"description": "vintage graphic tee", "size": null, "max_price": 30.0}, "results": 10, "selected": "Y2K Baby Tee — Butterfly Print", "fit_card": "Found this little butterfly tee on depop for $18.00 and haven't stopped wearing it since. I paired it with my go-to baggy dark wash jeans and a black crossbody bag for a classic noughties streetwear vibe. Finished the whole look off with some chunky silver hoop earrings 🦋", "duration_s": 3.38, "model_calls": 3, "prompt_tokens": 1028, "output_tokens": 216}
+{"ts": "2026-11-15T16:35:02+00:00", "query": "levis jeans", "status": "ok", "failed_stage": null, "error_type": null, "error": null, "parsed": {"description": "levis jeans", "size": null, "max_price": null}, "results": 4, "selected": "Vintage Levi's 501 Jeans — Medium Wash", "fit_card": "Scored these 501 jeans on depop for $38.00 and they honestly fit like a dream. I tucked a white ribbed tank into the high waist and threw on an oversized grey crewneck sweatshirt for that lazy Sunday streetwear vibe. Chunky white sneakers pull the whole casual look together. 👟✨", "duration_s": 32.63, "model_calls": 4, "prompt_tokens": 1017, "output_tokens": 211}
+{"ts": "2026-11-15T16:35:05+00:00", "query": "silk slip dress", "status": "ok", "failed_stage": null, "error_type": null, "error": null, "parsed": {"description": "silk slip dress", "size": null, "max_price": null}, "results": 2, "selected": "90s Silk Slip Dress — Floral, Midi Length", "fit_card": "Threw my oversized grey crewneck sweatshirt right over this floral slip dress so the midi hem peeks out at the bottom. I finished the whole thing off with my trusty black combat boots to lean into that 90s indie-sleaze energy. Snagged it on depop for $30.00 and I’m already living in it. 🖤🥀", "duration_s": 3.05, "model_calls": 3, "prompt_tokens": 1042, "output_tokens": 237}
+{"ts": "2026-11-15T16:35:07+00:00", "query": "leather bomber jacket under $80", "status": "ok", "failed_stage": null, "error_type": null, "error": null, "parsed": {"description": "leather bomber jacket", "size": null, "max_price": 80.0}, "results": 7, "selected": "90s Leather Bomber — Black", "fit_card": "Scored this amazing leather bomber on depop for just $75.00 and I’m never taking it off. Threw it on over my favorite white ribbed tank top and baggy straight-leg jeans with some chunky combat boots. It gives off that perfect effortless downtown edge without even trying. 🖤", "duration_s": 2.23, "model_calls": 3, "prompt_tokens": 1010, "output_tokens": 203}
+{"ts": "2026-11-15T16:35:27+00:00", "query": "denim jacket under $50", "status": "ok", "failed_stage": null, "error_type": null, "error": null, "parsed": {"description": "denim jacket", "size": null, "max_price": 50.0}, "results": 7, "selected": "Denim Jacket — Light Wash, Cropped", "fit_card": "Threw this cropped denim jacket over a grey crewneck and some baggy dark wash jeans for an easy street style look. Scored it on poshmark for only $42.00, and the structured shoulders give it the best shape. Finished the whole vibe with chunky black combat boots. 🧥✨", "duration_s": 20.33, "model_calls": 3, "prompt_tokens": 982, "output_tokens": 192}
+{"ts": "2026-11-15T16:35:30+00:00", "query": "vintage graphic tee under $30", "status": "ok", "failed_stage": null, "error_type": null, "error": null, "parsed": {"description": "vintage graphic tee", "size": null, "max_price": 30.0}, "results": 10, "selected": "Y2K Baby Tee — Butterfly Print", "fit_card": "Scored this butterfly baby tee for $18.00 on depop and I am so obsessed with the pastel print. I paired it with my favorite baggy straight-leg jeans and chunky white sneakers for the ultimate nostalgic streetwear fit. Threw on my vintage black denim jacket to finish the look and I'm ready to take on the day 🦋", "duration_s": 3.01, "model_calls": 3, "prompt_tokens": 1047, "output_tokens": 245}
+{"ts": "2026-11-15T16:36:01+00:00", "query": "levis jeans", "status": "ok", "failed_stage": null, "error_type": null, "error": null, "parsed": {"description": "levis jeans", "size": null, "max_price": null}, "results": 4, "selected": "Vintage Levi's 501 Jeans — Medium Wash", "fit_card": "Finally found the ultimate pair of vintage 501s with that perfectly worn-in knee fade. I threw them on with my white ribbed tank and layered an oversized grey crewneck right over top for an easy streetwear vibe. Snagged these beauties on depop for $38.00 and I'm never taking them off. 👖✨", "duration_s": 31.22, "model_calls": 3, "prompt_tokens": 1025, "output_tokens": 226}
+{"ts": "2026-11-15T16:37:02+00:00", "query": "silk slip dress", "status": "ok", "failed_stage": null, "error_type": null, "error": null, "parsed": {"description": "silk slip dress", "size": null, "max_price": null}, "results": 2, "selected": "90s Silk Slip Dress — Floral, Midi Length", "fit_card": "Threw on an oversized grey crewneck sweatshirt right over this floral slip dress for a comfy daytime look. Paired the whole thing with chunky white sneakers to lean into that easy 90s contrast. Snagged the dress on depop for $30.00 and it's basically all I want to wear now. 🌸👟", "duration_s": 61.03, "model_calls": 4, "prompt_tokens": 1012, "output_tokens": 201}
+{"ts": "2026-11-15T16:37:05+00:00", "query": "leather bomber jacket under $80", "status": "ok", "failed_stage": null, "error_type": null, "error": null, "parsed": {"description": "leather bomber jacket", "size": null, "max_price": 80.0}, "results": 7, "selected": "90s Leather Bomber — Black", "fit_card": "Scored this vintage leather bomber on depop for $75.00 and I’m so glad I pulled the trigger. Threw it over an oversized grey crewneck and wide-leg khaki trousers for the ultimate slouchy fit. Finished the whole thing off with chunky white sneakers. 👟", "duration_s": 2.73, "model_calls": 3, "prompt_tokens": 1013, "output_tokens": 204}
+{"ts": "2026-11-15T16:37:07+00:00", "query": "denim jacket under $50", "status": "ok", "failed_stage": null, "error_type": null, "error": null, "parsed": {"description": "denim jacket", "size": null, "max_price": 50.0}, "results": 7, "selected": "Denim Jacket — Light Wash, Cropped", "fit_card": "Threw on this cropped denim jacket over a white ribbed tank and baggy straight-leg jeans for an easy daytime fit. Snagged it on poshmark for $42.00 and I love the structured shoulders. Finished the look with some chunky white sneakers and a black crossbody bag. 👟✨", "duration_s": 2.28, "model_calls": 3, "prompt_tokens": 998, "output_tokens": 200}
+{"ts": "2026-11-15T16:37:15+00:00", "query": "vintage graphic tee under $30", "status": "error", "failed_stage": "search_listings", "error_type": "MCPError", "error": "Search is unavailable right now. Couldn't call 'search_listings' over MCP: unhandled errors in a TaskGroup (1 sub-exception)", "parsed": {"description": "vintage graphic tee", "size": null, "max_price": 30.0}, "results": 0, "selected": null, "fit_card": null, "duration_s": 1.37, "model_calls": 1, "prompt_tokens": 175, "output_tokens": 22}
+```
+
+Two things the log shows that I didn't plan for. Duration swings from about 2s to 61s for the same kind of run: runs 2, 5, 7 and 8 include waits from the rate limiter or a retry, not slow work. And one run in the cost test hit a real `504 DEADLINE_EXCEEDED` from the model service; the retry handled it (it shows as a 4th model call, and printed a `[retry]` line, not logged).
+
+**What It Costs**
+
+**Measured per run, averaged over 10 completed runs with the cache off** (`AI201_CACHE=0 python measure_cost.py`, which reads the numbers back out of `logs/runs.jsonl`; each run's tokens come from the service's own usage report in `generate.py`):
+
+| | Average per run |
+|---|---|
+| Model calls | 3.2 (parse, outfit, fit card, plus occasional retries) |
+| Prompt tokens | 1,017 |
+| Output tokens | 214 |
+| Total tokens | about 1,231 |
+| Seconds | 16.2 (median about 3s; the average is pulled up by rate-limit waits and a retry) |
+
+**Dollars:** I'm on the free tier, so what I actually paid is $0. I haven't put a dollar price on the tokens because I haven't looked up the current price for the model.
+
+**A hundred people a day, one run each:** 100 × 1,231 tokens = 123,100 tokens a day. In time: at 15 requests a minute and 3.2 calls a run, the limiter allows about 4.7 runs a minute, so 100 runs take at least 100 ÷ 4.7 ≈ 21 minutes of pacing, and that's if they arrive evenly. Request rate, not token count, is the first limit I'd hit.
+
+**Run Log and Verdicts**
+
+<!-- TODO: table with all 5 criteria, target, Run 1/2/3, MET or MISSED. Real output pasted under it, naming the file and function. For each miss: the stage and the mechanism. Look for a pattern across misses. -->
+
+**The Improvement**
+
+<!-- TODO: the one change, why (tied to a diagnosis), and the second run log in the same format next to the first. Did it help? Name any trade-off. -->
+
+**What's Still Broken**
+
+<!-- TODO: for each criterion still missed: what you'd do and why you stopped. If all met: which target was too low and what you'd tighten it to. Then two sentences on the one thing you'd do first with another unit. Also note anything you cut. -->
+
+**How I Used AI**
+
+<!-- TODO: two specific moments. What you asked, what you got, what you changed. -->
