@@ -246,3 +246,56 @@ history is what shows your criteria existed before your results did.
 units.
 
 `results/` is deliberately **not** in `.gitignore`.
+
+---
+
+## Capstone — running it with a run record (Path B, local)
+
+FitFindr runs on my machine, not on a host. One command runs the agent, and
+every run appends one JSON line to `logs/runs.jsonl`, whether it succeeded,
+found nothing, or failed.
+
+**What it needs**
+
+| Thing | Value |
+|---|---|
+| Python | 3.13 (developed on 3.13.15; 3.11 or newer should work) |
+| Dependencies | `requirements.txt`: `google-genai`, `mcp`, `python-dotenv`, `flask`, `gunicorn`. Installed versions when I tested: google-genai 1.75.0, mcp 1.30.0, python-dotenv 1.1.1 |
+| Model | None local. It calls `gemini-3.5-flash-lite` through the API, so there are no model files to download |
+| API key | `GEMINI_API_KEY` in `.env`, copied from `.env.example` |
+| Network | Outbound HTTPS to `generativelanguage.googleapis.com` |
+
+**Setup, from a clean checkout**
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env          # then paste your key into .env
+```
+
+**The one command that runs it**
+
+```bash
+python app.py ask 'vintage graphic tee under $30, size M'
+```
+
+It prints the result and appends one line to `logs/runs.jsonl`. Read the log
+back with `python runlog.py`, which prints the last ten entries.
+
+**Settings for the failure handling** (all in `config.py`, each overridable by
+an environment variable)
+
+| Variable | Default | What it does |
+|---|---|---|
+| `AI201_MODEL_TIMEOUT` | `30` | Seconds before one model call is given up on |
+| `AI201_MCP_TIMEOUT` | `15` | Seconds before one MCP search call is given up on |
+| `AI201_FORCE_IPV4` | `1` | Connect to the model over IPv4 only. See below |
+| `AI201_CACHE` | `1` | Set to `0` for real timings and real token counts |
+
+**Known environment issue: IPv6.** On my WSL network IPv6 is advertised but
+not routed, so Python tried each of Google's eight IPv6 addresses and waited
+out the connect timeout on every one. A single model call hung for minutes.
+`AI201_FORCE_IPV4=1` makes the model client use IPv4 only. If you are on an
+IPv6-only network, set `AI201_FORCE_IPV4=0`. The MCP server talks over stdio, so
+it isn't affected.
