@@ -100,6 +100,12 @@ MCP_TIMEOUT_S = float(os.getenv("AI201_MCP_TIMEOUT", "15"))
 # a dead service still fails in about twice the timeout.
 TRANSIENT_RETRIES = 1
 
+# Connect to the model over IPv4 only. On a network that advertises IPv6 but
+# doesn't route it, Python tries every IPv6 address first and each one waits out
+# the full connect timeout, so one call can hang for minutes. Set
+# AI201_FORCE_IPV4=0 on an IPv6-only network.
+FORCE_IPV4 = os.getenv("AI201_FORCE_IPV4", "1") != "0"
+
 # One JSON line per agent run, failed or not.
 RUN_LOG = ROOT / "logs" / "runs.jsonl"
 

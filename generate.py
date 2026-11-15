@@ -282,7 +282,14 @@ def _get_client():
                 "Copy .env.example to .env and paste your key in, then try "
                 "again. `python test.py` will confirm it's working."
             )
-        _client = genai.Client(api_key=key)
+        http_options = {}
+        if config.FORCE_IPV4:
+            import httpx
+
+            http_options["client_args"] = {
+                "transport": httpx.HTTPTransport(local_address="0.0.0.0")
+            }
+        _client = genai.Client(api_key=key, http_options=http_options or None)
     return _client
 
 
